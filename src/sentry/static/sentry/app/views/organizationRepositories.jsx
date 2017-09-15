@@ -22,12 +22,10 @@ class AddRepositoryLink extends PluginComponentBase {
     super(props, context);
 
     Object.assign(this.state, {
-      isModalOpen: false,
+      ...this.getDefaultState(),
       fieldList: null,
       loading: true,
-      state: FormState.LOADING,
-      error: {},
-      formData: {}
+      state: FormState.LOADING
     });
 
     ['onOpen', 'onCancel', 'formSubmit', 'changeField'].map(
@@ -35,12 +33,20 @@ class AddRepositoryLink extends PluginComponentBase {
     );
   }
 
+  getDefaultState() {
+    return {
+      isModalOpen: false,
+      error: {},
+      formData: {}
+    };
+  }
+
   onOpen() {
     this.setState({isModalOpen: true});
   }
 
   onCancel() {
-    this.setState({isModalOpen: false});
+    this.setState(this.getDefaultState());
   }
 
   formSubmit(ev) {
@@ -52,7 +58,13 @@ class AddRepositoryLink extends PluginComponentBase {
 
   onSubmit() {
     // TODO(dcramer): set form saving state
-    let repoName = {name: parseRepo(this.state.formData.name)};
+    let formData = {
+      ...this.state.formData,
+      provider: this.props.provider.id
+    };
+    if (formData.name) {
+      formData.name = parseRepo(formData.name);
+    }
 
     this.setState(
       {
@@ -60,13 +72,10 @@ class AddRepositoryLink extends PluginComponentBase {
       },
       () => {
         this.api.request(`/organizations/${this.props.orgId}/repos/`, {
-          data: {
-            provider: this.props.provider.id,
-            ...repoName
-          },
+          data: formData,
           method: 'POST',
           success: this.onSaveSuccess.bind(this, data => {
-            this.setState({isModalOpen: false});
+            this.setState({isModalOpen: false, formData: {}, error: {}});
             this.props.onSuccess(data);
           }),
           error: this.onSaveError.bind(this, error => {
@@ -82,9 +91,12 @@ class AddRepositoryLink extends PluginComponentBase {
   }
 
   changeField(name, value) {
-    let formData = this.state.formData;
-    formData[name] = value;
-    this.setState({[name]: formData});
+    this.setState(state => {
+      state.formData = {
+        ...state.formData,
+        [name]: value
+      };
+    });
   }
 
   renderForm() {
@@ -155,7 +167,7 @@ class AddRepositoryLink extends PluginComponentBase {
   }
 
   renderModal() {
-    let state = this.state.state;
+    let {error, state} = this.state;
     return (
       <Modal show={this.state.isModalOpen} animation={false}>
         <div className="modal-header">
@@ -166,22 +178,24 @@ class AddRepositoryLink extends PluginComponentBase {
         <div className="modal-body">
           {this.renderBody()}
         </div>
-        <div className="modal-footer">
-          <button
-            type="button"
-            className="btn btn-default"
-            onClick={this.onCancel}
-            disabled={state === FormState.SAVING}>
-            {t('Cancel')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={this.onSubmit}
-            disabled={state === FormState.SAVING}>
-            {t('Save Changes')}
-          </button>
-        </div>
+        {!error || error.error_type !== 'unknown' || error.message
+          ? <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-default"
+                onClick={this.onCancel}
+                disabled={state === FormState.SAVING}>
+                {t('Cancel')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={this.onSubmit}
+                disabled={state === FormState.SAVING}>
+                {t('Save Changes')}
+              </button>
+            </div>
+          : null}
       </Modal>
     );
   }
